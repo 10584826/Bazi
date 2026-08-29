@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-serif, Georgia, "Noto Serif TC", serif;
+  background:
+    radial-gradient(circle at top, rgba(201,164,106,.18), transparent 36%),
+    linear-gradient(180deg, #f6f0e4 0%, #efe6d6 100%);
+  color: #1c1b18;
+}
+
+.card {
+  background: rgba(255,255,255,0.74);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(200,169,106,0.35);
+  box-shadow: 0 10px 30px rgba(0,0,0,.08);
+}
