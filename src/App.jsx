@@ -3,8 +3,7 @@ import { calculateBazi } from "./lib/bazi";
 import { buildBaziPrompt } from "./lib/prompt";
 
 const currentYear = new Date().getFullYear();
-
-const yearOptions = Array.from({ length: 136 }, (_, i) => currentYear - i); // 例如 2035 ~ 1900 左右
+const yearOptions = Array.from({ length: 136 }, (_, i) => currentYear - i); // 約 1900 ~ 現在
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
 const dayOptions = Array.from({ length: 31 }, (_, i) => i + 1);
 
@@ -78,6 +77,7 @@ export default function App() {
     year: currentYear,
     month: 1,
     day: 1,
+    isLeapMonth: false,
     hour: 9,
     minute: 0,
     unknownHour: false,
@@ -106,6 +106,7 @@ export default function App() {
 
   const handleShichenChange = (value) => {
     const selected = shichenOptions.find((opt) => String(opt.hour) === value);
+
     if (!selected || selected.hour === null) {
       setField("unknownHour", true);
       setField("hour", 0);
@@ -192,7 +193,7 @@ export default function App() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-2xl font-bold text-[#2b2418]">出生資料輸入</h2>
             <span className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-4 py-1 text-sm text-[#6b5a3b]">
-              表單優化版
+              公曆 / 農曆切換版
             </span>
           </div>
 
@@ -231,41 +232,95 @@ export default function App() {
               出生時辰未知
             </label>
 
-            <select
-              className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
-              value={form.year}
-              onChange={(e) => setField("year", Number(e.target.value))}
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y} 年
-                </option>
-              ))}
-            </select>
+            {/* 年月日欄位：依模式顯示不同文案 */}
+            {form.calendarType === "solar" ? (
+              <>
+                <select
+                  className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+                  value={form.year}
+                  onChange={(e) => setField("year", Number(e.target.value))}
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y} 年
+                    </option>
+                  ))}
+                </select>
 
-            <select
-              className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
-              value={form.month}
-              onChange={(e) => setField("month", Number(e.target.value))}
-            >
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m} 月
-                </option>
-              ))}
-            </select>
+                <select
+                  className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+                  value={form.month}
+                  onChange={(e) => setField("month", Number(e.target.value))}
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {m} 月
+                    </option>
+                  ))}
+                </select>
 
-            <select
-              className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
-              value={form.day}
-              onChange={(e) => setField("day", Number(e.target.value))}
-            >
-              {dayOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d} 日
-                </option>
-              ))}
-            </select>
+                <select
+                  className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+                  value={form.day}
+                  onChange={(e) => setField("day", Number(e.target.value))}
+                >
+                  {dayOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d} 日
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <select
+                  className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+                  value={form.year}
+                  onChange={(e) => setField("year", Number(e.target.value))}
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      農曆 {y} 年
+                    </option>
+                  ))}
+                </select>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+                    value={form.month}
+                    onChange={(e) => setField("month", Number(e.target.value))}
+                  >
+                    {monthOptions.map((m) => (
+                      <option key={m} value={m}>
+                        農曆 {m} 月
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="flex items-center gap-3 rounded-xl border border-[#d8c59a] bg-white/70 px-3 py-3 text-sm text-[#4a3c26]">
+                    <input
+                      type="checkbox"
+                      checked={form.isLeapMonth}
+                      onChange={(e) => setField("isLeapMonth", e.target.checked)}
+                    />
+                    閏月
+                  </label>
+                </div>
+
+                <select
+                  className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+                  value={form.day}
+                  onChange={(e) => setField("day", Number(e.target.value))}
+                >
+                  {dayOptions.map((d) => (
+                    <option key={d} value={d}>
+                      農曆 {d} 日
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
 
             <select
               className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
@@ -274,7 +329,10 @@ export default function App() {
               disabled={form.unknownHour}
             >
               {shichenOptions.map((opt) => (
-                <option key={opt.label} value={opt.hour === null ? "" : String(opt.hour)}>
+                <option
+                  key={opt.label}
+                  value={opt.hour === null ? "" : String(opt.hour)}
+                >
                   {opt.label}
                 </option>
               ))}
@@ -352,7 +410,14 @@ export default function App() {
                 </div>
 
                 <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4 text-sm leading-7 text-gray-700">
-                  <div>出生原始資料：{result.lunarText}</div>
+                  <div>
+                    出生模式：
+                    {form.calendarType === "solar" ? "公曆 / 國曆" : "農曆 / 陰曆"}
+                  </div>
+                  {form.calendarType === "lunar" && (
+                    <div>閏月：{form.isLeapMonth ? "是" : "否"}</div>
+                  )}
+                  <div className="mt-1">出生原始資料：{result.lunarText}</div>
                   <div className="mt-1">主要五行：{result.dominantElement}</div>
                   <div>日主強弱：{result.strength}</div>
                   <div>大運方向：{result.daYun.direction}</div>
