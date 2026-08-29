@@ -10,7 +10,7 @@ const distPath = path.join(__dirname, "dist");
 
 app.use(express.json());
 
-// 健康檢查
+// health check
 app.get("/health", (req, res) => {
   res.json({ ok: true, service: "bazi-ai-app" });
 });
@@ -64,11 +64,11 @@ app.post("/api/gemini", async (req, res) => {
   }
 });
 
-// 靜態資源
+// 靜態檔案
 app.use(express.static(distPath));
 
-// SPA fallback：避免重新整理 404
-app.get("*", (req, res) => {
+// SPA fallback：避免 Express 5 的 * 路由錯誤
+app.use((req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
