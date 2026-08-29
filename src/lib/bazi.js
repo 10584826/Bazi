@@ -1,4 +1,4 @@
-import { Solar } from "lunar-javascript";
+import { Solar, Lunar } from "lunar-javascript";
 import { getHiddenStems } from "./hiddenStems";
 import { getTenGod } from "./tenGod";
 import { countElements, dominantElement } from "./wuxing";
@@ -15,10 +15,38 @@ export function calculateBazi(input) {
     day,
     hour,
     minute,
-    unknownHour
+    unknownHour,
+    isLeapMonth = false
   } = input;
 
-  const solar = Solar.fromYmdHms(year, month, day, hour || 0, minute || 0, 0);
+  let solar;
+
+  // 1) 先根據公曆 / 農曆建立 Solar
+  if (calendarType === "lunar") {
+    // 農曆模式：先建立 Lunar，再轉 Solar
+    const lunar = Lunar.fromYmdHms(
+      year,
+      month,
+      day,
+      hour || 0,
+      minute || 0,
+      0
+    );
+
+    // 設定閏月
+    if (isLeapMonth && typeof lunar.setLeap === "function") {
+      lunar.setLeap(true);
+    } else if (isLeapMonth && typeof lunar.isLeap === "function") {
+      // 某些版本可能用不同 API 命名，這裡做兼容
+      lunar.setLeap?.(true);
+    }
+
+    solar = lunar.getSolar();
+  } else {
+    // 公曆模式
+    solar = Solar.fromYmdHms(year, month, day, hour || 0, minute || 0, 0);
+  }
+
   const lunar = solar.getLunar();
   const eightChar = lunar.getEightChar();
 
@@ -92,7 +120,7 @@ export function calculateBazi(input) {
     name: name || "",
     gender,
     calendarType,
-    birth: { year, month, day, hour, minute, unknownHour },
+    birth: { year, month, day, hour, minute, unknownHour, isLeapMonth },
     pillars,
     dayMaster,
     hiddenStems,
@@ -104,6 +132,7 @@ export function calculateBazi(input) {
     lunarText: lunar.toString(),
     birthYearGanzhi,
     recentLiuNian,
-    futureLiuNian
+    futureLiuNian,
+    solarText: solar.toYmdHms ? solar.toYmdHms() : `${year}-${month}-${day} ${hour || 0}:${minute || 0}:00`
   };
 }

@@ -11,7 +11,8 @@ export function buildBaziPrompt(result, userQuestion = "") {
 姓名/暱稱：${result.name || "未提供"}
 性別：${result.gender === "male" ? "男" : "女"}
 出生資料：${result.birth.year}-${result.birth.month}-${result.birth.day} ${result.birth.hour}:${String(result.birth.minute).padStart(2, "0")}
-輸入模式：${result.calendarType === "solar" ? "公曆/國曆" : "農曆/陰曆"}
+出生模式：${result.calendarType === "solar" ? "公曆/國曆" : "農曆/陰曆"}
+是否閏月：${result.birth.isLeapMonth ? "是" : "否"}
 是否未知時辰：${result.birth.unknownHour ? "是" : "否"}
 
 【八字四柱】
