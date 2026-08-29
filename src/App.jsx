@@ -2,6 +2,28 @@ import { useMemo, useState } from "react";
 import { calculateBazi } from "./lib/bazi";
 import { buildBaziPrompt } from "./lib/prompt";
 
+const currentYear = new Date().getFullYear();
+
+const yearOptions = Array.from({ length: 136 }, (_, i) => currentYear - i); // 例如 2035 ~ 1900 左右
+const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
+const dayOptions = Array.from({ length: 31 }, (_, i) => i + 1);
+
+const shichenOptions = [
+  { label: "子時 23:00–00:59", hour: 23 },
+  { label: "丑時 01:00–02:59", hour: 1 },
+  { label: "寅時 03:00–04:59", hour: 3 },
+  { label: "卯時 05:00–06:59", hour: 5 },
+  { label: "辰時 07:00–08:59", hour: 7 },
+  { label: "巳時 09:00–10:59", hour: 9 },
+  { label: "午時 11:00–12:59", hour: 11 },
+  { label: "未時 13:00–14:59", hour: 13 },
+  { label: "申時 15:00–16:59", hour: 15 },
+  { label: "酉時 17:00–18:59", hour: 17 },
+  { label: "戌時 19:00–20:59", hour: 19 },
+  { label: "亥時 21:00–22:59", hour: 21 },
+  { label: "不確定", hour: null },
+];
+
 function PillarCard({ title, gan, zhi, tenGod, hiddenStems }) {
   return (
     <div className="rounded-2xl border border-[#d8c59a] bg-white/75 p-4 shadow-sm">
@@ -53,12 +75,13 @@ export default function App() {
     name: "",
     gender: "male",
     calendarType: "solar",
-    year: 1995,
-    month: 5,
-    day: 18,
+    year: currentYear,
+    month: 1,
+    day: 1,
     hour: 9,
-    minute: 30,
+    minute: 0,
     unknownHour: false,
+    shichen: 9,
     question: "請分析我的事業、財運與感情運勢",
   });
 
@@ -81,6 +104,35 @@ export default function App() {
     ];
   }, [result]);
 
+  const handleShichenChange = (value) => {
+    const selected = shichenOptions.find((opt) => String(opt.hour) === value);
+    if (!selected || selected.hour === null) {
+      setField("unknownHour", true);
+      setField("hour", 0);
+      setField("minute", 0);
+      setField("shichen", "");
+      return;
+    }
+
+    setField("unknownHour", false);
+    setField("hour", selected.hour);
+    setField("minute", 0);
+    setField("shichen", selected.hour);
+  };
+
+  const handleUnknownHourToggle = (checked) => {
+    setField("unknownHour", checked);
+    if (checked) {
+      setField("hour", 0);
+      setField("minute", 0);
+      setField("shichen", "");
+    } else {
+      setField("hour", 9);
+      setField("minute", 0);
+      setField("shichen", 9);
+    }
+  };
+
   const handleGenerate = async () => {
     setLoading(true);
     setAiText("");
@@ -97,10 +149,23 @@ export default function App() {
         body: JSON.stringify({ prompt }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data = {};
+
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        throw new Error(`後端回傳不是合法 JSON：${rawText || "空回應"}`);
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "API 呼叫失敗");
+        throw new Error(
+          `${data.error || "API 呼叫失敗"}：${
+            typeof data.detail === "string"
+              ? data.detail
+              : JSON.stringify(data.detail || {})
+          }`
+        );
       }
 
       setAiText(data.text || "AI 沒有回傳內容");
@@ -127,7 +192,7 @@ export default function App() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-2xl font-bold text-[#2b2418]">出生資料輸入</h2>
             <span className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-4 py-1 text-sm text-[#6b5a3b]">
-              零成本部署版 MVP
+              表單優化版
             </span>
           </div>
 
@@ -161,50 +226,70 @@ export default function App() {
               <input
                 type="checkbox"
                 checked={form.unknownHour}
-                onChange={(e) => setField("unknownHour", e.target.checked)}
+                onChange={(e) => handleUnknownHourToggle(e.target.checked)}
               />
               出生時辰未知
             </label>
 
-            <input
-              type="number"
+            <select
               className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
               value={form.year}
               onChange={(e) => setField("year", Number(e.target.value))}
-              placeholder="西元年"
-            />
-            <input
-              type="number"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y} 年
+                </option>
+              ))}
+            </select>
+
+            <select
               className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
               value={form.month}
               onChange={(e) => setField("month", Number(e.target.value))}
-              placeholder="月"
-            />
-            <input
-              type="number"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m} 月
+                </option>
+              ))}
+            </select>
+
+            <select
               className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
               value={form.day}
               onChange={(e) => setField("day", Number(e.target.value))}
-              placeholder="日"
+            >
+              {dayOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d} 日
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
+              value={form.shichen === "" ? "" : String(form.shichen)}
+              onChange={(e) => handleShichenChange(e.target.value)}
+              disabled={form.unknownHour}
+            >
+              {shichenOptions.map((opt) => (
+                <option key={opt.label} value={opt.hour === null ? "" : String(opt.hour)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="number"
+              min="0"
+              max="59"
+              className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a] md:col-span-2"
+              value={form.minute}
+              onChange={(e) => setField("minute", Number(e.target.value))}
+              placeholder="分鐘（選填，預設 0）"
+              disabled={form.unknownHour}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
-                value={form.hour}
-                onChange={(e) => setField("hour", Number(e.target.value))}
-                placeholder="時"
-                disabled={form.unknownHour}
-              />
-              <input
-                type="number"
-                className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a]"
-                value={form.minute}
-                onChange={(e) => setField("minute", Number(e.target.value))}
-                placeholder="分"
-                disabled={form.unknownHour}
-              />
-            </div>
 
             <textarea
               className="rounded-xl border border-[#d8c59a] bg-white/80 p-3 outline-none focus:ring-2 focus:ring-[#c8a96a] md:col-span-2"
