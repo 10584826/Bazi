@@ -1,4 +1,4 @@
-export const hiddenStems = {
+const hiddenStemMap = {
   子: ["癸"],
   丑: ["己", "癸", "辛"],
   寅: ["甲", "丙", "戊"],
@@ -10,9 +10,10 @@ export const hiddenStems = {
   申: ["庚", "壬", "戊"],
   酉: ["辛"],
   戌: ["戊", "辛", "丁"],
-  亥: ["壬", "甲"]
+  亥: ["壬", "甲"],
 };
 
-export function getHiddenStems(branch) {
-  return hiddenStems[branch] || [];
+export function getHiddenStems(zhi) {
+  if (!zhi) return [];
+  return hiddenStemMap[zhi] || [];
 }

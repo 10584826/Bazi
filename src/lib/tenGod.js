@@ -1,53 +1,70 @@
-import { stemMeta } from "./wuxing";
+const stems = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
 
-const elementGenerate = {
-  木: "火",
-  火: "土",
-  土: "金",
-  金: "水",
-  水: "木"
+const stemToIndex = Object.fromEntries(stems.map((s, i) => [s, i]));
+
+const fiveElementByStem = {
+  甲: "木",
+  乙: "木",
+  丙: "火",
+  丁: "火",
+  戊: "土",
+  己: "土",
+  庚: "金",
+  辛: "金",
+  壬: "水",
+  癸: "水",
 };
 
-const elementControl = {
-  木: "土",
-  火: "金",
-  土: "水",
-  金: "木",
-  水: "火"
+const yinYangByStem = {
+  甲: "yang",
+  乙: "yin",
+  丙: "yang",
+  丁: "yin",
+  戊: "yang",
+  己: "yin",
+  庚: "yang",
+  辛: "yin",
+  壬: "yang",
+  癸: "yin",
 };
 
-export function getTenGod(dayMaster, targetStem) {
-  if (!dayMaster || !targetStem || dayMaster === "未知" || targetStem === "未知") {
-    return "未知";
+function generateRelation(dayElement, otherElement) {
+  if (dayElement === otherElement) return "same";
+  const cycle = ["木", "火", "土", "金", "水"];
+  const dayIndex = cycle.indexOf(dayElement);
+  const otherIndex = cycle.indexOf(otherElement);
+  const diff = (otherIndex - dayIndex + 5) % 5;
+
+  if (diff === 1) return "output";
+  if (diff === 2) return "wealth";
+  if (diff === 3) return "power";
+  if (diff === 4) return "resource";
+  return "same";
+}
+
+export function getTenGod(dayGan, otherGan) {
+  if (!dayGan || !otherGan) return "";
+
+  const dayElement = fiveElementByStem[dayGan];
+  const otherElement = fiveElementByStem[otherGan];
+  const dayYinYang = yinYangByStem[dayGan];
+  const otherYinYang = yinYangByStem[otherGan];
+
+  const relation = generateRelation(dayElement, otherElement);
+  const samePolarity = dayYinYang === otherYinYang;
+
+  switch (relation) {
+    case "same":
+      return samePolarity ? "比肩" : "劫財";
+    case "output":
+      return samePolarity ? "食神" : "傷官";
+    case "wealth":
+      return samePolarity ? "偏財" : "正財";
+    case "power":
+      return samePolarity ? "七殺" : "正官";
+    case "resource":
+      return samePolarity ? "偏印" : "正印";
+    default:
+      return "";
   }
-
-  const dm = stemMeta[dayMaster];
-  const tg = stemMeta[targetStem];
-  if (!dm || !tg) return "未知";
-
-  const dmElement = dm.element;
-  const tgElement = tg.element;
-  const samePolarity = dm.yinYang === tg.yinYang;
-
-  if (dmElement === tgElement) {
-    return samePolarity ? "比肩" : "劫財";
-  }
-
-  if (elementGenerate[dmElement] === tgElement) {
-    return samePolarity ? "食神" : "傷官";
-  }
-
-  if (elementGenerate[tgElement] === dmElement) {
-    return samePolarity ? "偏印" : "正印";
-  }
-
-  if (elementControl[dmElement] === tgElement) {
-    return samePolarity ? "偏財" : "正財";
-  }
-
-  if (elementControl[tgElement] === dmElement) {
-    return samePolarity ? "七殺" : "正官";
-  }
-
-  return "未知";
 }

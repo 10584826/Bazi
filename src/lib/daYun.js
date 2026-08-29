@@ -1,47 +1,127 @@
+import { Solar } from "lunar-javascript";
+
 const ganList = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
 const zhiList = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
 
-function nextGanZhi(gan, zhi, step = 1) {
-  const gIndex = ganList.indexOf(gan);
-  const zIndex = zhiList.indexOf(zhi);
-  if (gIndex === -1 || zIndex === -1) return { gan: "未知", zhi: "未知" };
+const yangGan = ["甲", "丙", "戊", "庚", "壬"];
 
-  const ng = (gIndex + step + 10) % 10;
-  const nz = (zIndex + step + 12) % 12;
+function nextGanZhi(gz, step = 1) {
+  if (!gz || gz.length < 2) return "";
+  const gan = gz.charAt(0);
+  const zhi = gz.charAt(1);
+  const ganIndex = ganList.indexOf(gan);
+  const zhiIndex = zhiList.indexOf(zhi);
+  if (ganIndex < 0 || zhiIndex < 0) return "";
+
+  const nextGan = ganList[(ganIndex + step + 10) % 10];
+  const nextZhi = zhiList[(zhiIndex + step + 12) % 12];
+  return `${nextGan}${nextZhi}`;
+}
+
+function getSolarFromBirth(birth) {
+  return Solar.fromYmdHms(
+    birth.year,
+    birth.month,
+    birth.day,
+    birth.unknownHour ? 0 : birth.hour || 0,
+    birth.minute || 0,
+    0
+  );
+}
+
+function getNextSolarTermDate(solar) {
+  try {
+    const lunar = solar.getLunar();
+    const nextJieQi = lunar.getNextJieQi();
+    if (!nextJieQi) return null;
+    return nextJieQi.getSolar();
+  } catch {
+    return null;
+  }
+}
+
+function getPrevSolarTermDate(solar) {
+  try {
+    const lunar = solar.getLunar();
+    const prevJieQi = lunar.getPrevJieQi();
+    if (!prevJieQi) return null;
+    return prevJieQi.getSolar();
+  } catch {
+    return null;
+  }
+}
+
+function getDirection(gender, yearGan) {
+  const isYang = yangGan.includes(yearGan);
+  if (gender === "male") {
+    return isYang ? "順行" : "逆行";
+  }
+  return isYang ? "逆行" : "順行";
+}
+
+function calcStartAgeInYears(birthSolar, direction) {
+  const targetSolar =
+    direction === "順行"
+      ? getNextSolarTermDate(birthSolar)
+      : getPrevSolarTermDate(birthSolar);
+
+  if (!targetSolar) {
+    return { years: 0, months: 0, days: 0, rawDays: 0 };
+  }
+
+  const diffMs = Math.abs(
+    targetSolar.getCalendar().getTime() - birthSolar.getCalendar().getTime()
+  );
+  const rawDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  // 傳統常用：3天 = 1歲
+  const totalMonths = Math.round((rawDays / 3) * 12);
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
 
   return {
-    gan: ganList[ng],
-    zhi: zhiList[nz]
+    years,
+    months,
+    days: rawDays,
+    rawDays,
   };
 }
 
-export function calcDaYun(pillars, gender) {
-  const isMale = gender === "male";
+export function calcDaYun(pillars, gender, birth = null) {
+  const yearGan = pillars?.year?.gan || "";
+  const monthGan = pillars?.month?.gan || "";
+  const monthZhi = pillars?.month?.zhi || "";
 
-  // 簡化順逆：陽男陰女順，陰男陽女逆
-  // 這裡用年干陰陽當參考，正式版可再精準化
-  const yearGan = pillars.year.gan;
-  const yangStems = ["甲", "丙", "戊", "庚", "壬"];
-  const isYangYear = yangStems.includes(yearGan);
+  const direction = getDirection(gender, yearGan);
 
-  const forward = (isMale && isYangYear) || (!isMale && !isYangYear);
+  let startAge = { years: 0, months: 0, days: 0, rawDays: 0 };
 
-  const base = pillars.month;
-  const result = [];
+  if (birth) {
+    try {
+      const birthSolar = getSolarFromBirth(birth);
+      startAge = calcStartAgeInYears(birthSolar, direction);
+    } catch {
+      startAge = { years: 0, months: 0, days: 0, rawDays: 0 };
+    }
+  }
 
-  let current = { ...base };
-  for (let i = 1; i <= 8; i++) {
-    current = nextGanZhi(current.gan, current.zhi, forward ? 1 : -1);
-    result.push({
-      ageRange: `${i * 10}~${i * 10 + 9}`,
-      gan: current.gan,
-      zhi: current.zhi
+  const base = `${monthGan}${monthZhi}`;
+  const cycles = [];
+
+  for (let i = 1; i <= 10; i++) {
+    const step = direction === "順行" ? i : -i;
+    const gz = nextGanZhi(base, step);
+    cycles.push({
+      ageRange: `${startAge.years + (i - 1) * 10}-${startAge.years + (i - 1) * 10 + 9}`,
+      gan: gz.charAt(0) || "",
+      zhi: gz.charAt(1) || "",
+      label: gz,
     });
   }
 
   return {
-    direction: forward ? "順行" : "逆行",
-    startAge: 10,
-    cycles: result
+    direction,
+    startAge,
+    cycles,
   };
 }

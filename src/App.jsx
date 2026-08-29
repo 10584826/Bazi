@@ -4,7 +4,7 @@ import { calculateBazi } from "./lib/bazi";
 import { buildBaziPrompt } from "./lib/prompt";
 
 const currentYear = new Date().getFullYear();
-const yearOptions = Array.from({ length: 136 }, (_, i) => currentYear - i); // 約 1900 ~ 現在
+const yearOptions = Array.from({ length: 136 }, (_, i) => currentYear - i);
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const shichenOptions = [
@@ -25,7 +25,6 @@ const shichenOptions = [
 
 const getDaysInSolarMonth = (year, month) => new Date(year, month, 0).getDate();
 
-// 精準農曆月份天數：用「本月初一」到「下月初一」的日期差來計算
 const getDaysInLunarMonth = (year, month, isLeapMonth = false) => {
   try {
     const lunarThis = Lunar.fromYmd(year, month, 1);
@@ -35,7 +34,6 @@ const getDaysInLunarMonth = (year, month, isLeapMonth = false) => {
 
     let nextYear = year;
     let nextMonth = month + 1;
-
     if (nextMonth > 12) {
       nextMonth = 1;
       nextYear += 1;
@@ -49,17 +47,69 @@ const getDaysInLunarMonth = (year, month, isLeapMonth = false) => {
     const diffMs = solarNext.getCalendar().getTime() - solarThis.getCalendar().getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-    // 農曆月份通常只有 29 或 30 天，做個保底
     return Math.max(29, Math.min(30, diffDays));
-  } catch (error) {
-    console.warn("getDaysInLunarMonth fallback:", error);
+  } catch {
     return 30;
   }
 };
 
+const QUICK_SAMPLES = [
+  {
+    label: "範例 1：1992-08-15 申時",
+    form: {
+      name: "小安",
+      gender: "male",
+      calendarType: "solar",
+      year: 1992,
+      month: 8,
+      day: 15,
+      isLeapMonth: false,
+      hour: 15,
+      minute: 0,
+      unknownHour: false,
+      shichen: 15,
+      question: "請分析我的事業、財運與感情運勢",
+    },
+  },
+  {
+    label: "範例 2：1988-03-21 午時",
+    form: {
+      name: "Mina",
+      gender: "female",
+      calendarType: "solar",
+      year: 1988,
+      month: 3,
+      day: 21,
+      isLeapMonth: false,
+      hour: 11,
+      minute: 0,
+      unknownHour: false,
+      shichen: 11,
+      question: "請看我接下來一年的工作與感情運勢",
+    },
+  },
+  {
+    label: "範例 3：農曆模式",
+    form: {
+      name: "阿哲",
+      gender: "male",
+      calendarType: "lunar",
+      year: 1990,
+      month: 5,
+      day: 18,
+      isLeapMonth: false,
+      hour: 9,
+      minute: 0,
+      unknownHour: false,
+      shichen: 9,
+      question: "請分析我的整體命格與人生重點",
+    },
+  },
+];
+
 function PillarCard({ title, gan, zhi, tenGod, hiddenStems }) {
   return (
-    <div className="rounded-2xl border border-[#d8c59a] bg-white/75 p-4 shadow-sm">
+    <div className="rounded-2xl border border-[#d8c59a] bg-white/80 p-4 shadow-sm">
       <div className="text-sm text-gray-500">{title}</div>
       <div className="mt-2 text-3xl font-semibold text-[#2b2418]">
         {gan}
@@ -103,6 +153,21 @@ function SectionTitle({ children }) {
   return <h3 className="mb-3 font-semibold text-[#2b2418]">{children}</h3>;
 }
 
+function TabButton({ active, children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+        active
+          ? "bg-[#2b2418] text-white"
+          : "border border-[#d8c59a] bg-white text-[#5a4a30] hover:bg-[#fff7e2]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function App() {
   const [form, setForm] = useState({
     name: "",
@@ -122,6 +187,8 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [aiText, setAiText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState("");
+  const [activeTab, setActiveTab] = useState("chart");
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -181,13 +248,23 @@ export default function App() {
     }
   };
 
+  const applySample = (sample) => {
+    setForm(sample.form);
+    setResult(null);
+    setAiText("");
+    setErrorText("");
+    setActiveTab("chart");
+  };
+
   const handleGenerate = async () => {
     setLoading(true);
     setAiText("");
+    setErrorText("");
 
     try {
       const bazi = calculateBazi(form);
       setResult(bazi);
+      setActiveTab("chart");
 
       const prompt = buildBaziPrompt(bazi, form.question);
 
@@ -217,8 +294,12 @@ export default function App() {
       }
 
       setAiText(data.text || "AI 沒有回傳內容");
+      setActiveTab("ai");
     } catch (error) {
-      setAiText(`錯誤：${error.message}`);
+      const msg = `錯誤：${error.message}`;
+      setAiText(msg);
+      setErrorText(msg);
+      setActiveTab("ai");
     } finally {
       setLoading(false);
     }
@@ -240,8 +321,47 @@ export default function App() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-2xl font-bold text-[#2b2418]">出生資料輸入</h2>
             <span className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-4 py-1 text-sm text-[#6b5a3b]">
-              公曆 / 農曆切換版
+              Tab 分頁版
             </span>
+          </div>
+
+          <div className="mb-5 flex flex-wrap gap-2">
+            {QUICK_SAMPLES.map((sample) => (
+              <button
+                key={sample.label}
+                type="button"
+                onClick={() => applySample(sample)}
+                className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-4 py-2 text-sm text-[#5a4a30] transition hover:bg-[#f4e8c9]"
+              >
+                {sample.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setForm({
+                  name: "",
+                  gender: "male",
+                  calendarType: "solar",
+                  year: currentYear,
+                  month: 1,
+                  day: 1,
+                  isLeapMonth: false,
+                  hour: 9,
+                  minute: 0,
+                  unknownHour: false,
+                  shichen: 9,
+                  question: "請分析我的事業、財運與感情運勢",
+                });
+                setResult(null);
+                setAiText("");
+                setErrorText("");
+                setActiveTab("chart");
+              }}
+              className="rounded-full border border-[#d8c59a] bg-white px-4 py-2 text-sm text-[#5a4a30] transition hover:bg-[#fff7e2]"
+            >
+              清空重填
+            </button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -375,10 +495,7 @@ export default function App() {
               disabled={form.unknownHour}
             >
               {shichenOptions.map((opt) => (
-                <option
-                  key={opt.label}
-                  value={opt.hour === null ? "" : String(opt.hour)}
-                >
+                <option key={opt.label} value={opt.hour === null ? "" : String(opt.hour)}>
                   {opt.label}
                 </option>
               ))}
@@ -415,75 +532,85 @@ export default function App() {
 
         {result && (
           <section className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-6">
-              <div className="card rounded-3xl p-5 md:p-8 space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-2xl font-bold text-[#2b2418]">八字命盤</h2>
-                  <div className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-4 py-1 text-sm text-[#6b5a3b]">
-                    日主：<span className="font-semibold">{result.dayMaster}</span>
+            <div className="card rounded-3xl p-5 md:p-8">
+              <div className="mb-4 flex flex-wrap gap-2">
+                <TabButton active={activeTab === "chart"} onClick={() => setActiveTab("chart")}>命盤</TabButton>
+                <TabButton active={activeTab === "elements"} onClick={() => setActiveTab("elements")}>五行</TabButton>
+                <TabButton active={activeTab === "dayun"} onClick={() => setActiveTab("dayun")}>大運</TabButton>
+                <TabButton active={activeTab === "liunian"} onClick={() => setActiveTab("liunian")}>流年</TabButton>
+                <TabButton active={activeTab === "ai"} onClick={() => setActiveTab("ai")}>AI 解讀</TabButton>
+              </div>
+
+              {activeTab === "chart" && (
+                <div className="space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-2xl font-bold text-[#2b2418]">八字命盤</h2>
+                    <div className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-4 py-1 text-sm text-[#6b5a3b]">
+                      日主：<span className="font-semibold">{result.dayMaster}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <PillarCard
+                      title="年柱"
+                      gan={result.pillars.year.gan}
+                      zhi={result.pillars.year.zhi}
+                      tenGod={result.tenGods.year}
+                      hiddenStems={result.hiddenStems.year}
+                    />
+                    <PillarCard
+                      title="月柱"
+                      gan={result.pillars.month.gan}
+                      zhi={result.pillars.month.zhi}
+                      tenGod={result.tenGods.month}
+                      hiddenStems={result.hiddenStems.month}
+                    />
+                    <PillarCard
+                      title="日柱"
+                      gan={result.pillars.day.gan}
+                      zhi={result.pillars.day.zhi}
+                      tenGod={result.tenGods.day}
+                      hiddenStems={result.hiddenStems.day}
+                    />
+                    <PillarCard
+                      title="時柱"
+                      gan={result.pillars.hour.gan}
+                      zhi={result.pillars.hour.zhi}
+                      tenGod={result.tenGods.hour}
+                      hiddenStems={result.hiddenStems.hour}
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4 text-sm leading-7 text-gray-700">
+                    <div>
+                      出生模式：
+                      {form.calendarType === "solar" ? "公曆 / 國曆" : "農曆 / 陰曆"}
+                    </div>
+                    {form.calendarType === "lunar" && (
+                      <div>閏月：{form.isLeapMonth ? "是" : "否"}</div>
+                    )}
+                    <div className="mt-1">出生原始資料：{result.lunarText}</div>
+                    <div>主要五行：{result.dominantElement}</div>
+                    <div>日主強弱：{result.strength}</div>
+                    <div>大運方向：{result.daYun.direction}</div>
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <PillarCard
-                    title="年柱"
-                    gan={result.pillars.year.gan}
-                    zhi={result.pillars.year.zhi}
-                    tenGod={result.tenGods.year}
-                    hiddenStems={result.hiddenStems.year}
-                  />
-                  <PillarCard
-                    title="月柱"
-                    gan={result.pillars.month.gan}
-                    zhi={result.pillars.month.zhi}
-                    tenGod={result.tenGods.month}
-                    hiddenStems={result.hiddenStems.month}
-                  />
-                  <PillarCard
-                    title="日柱"
-                    gan={result.pillars.day.gan}
-                    zhi={result.pillars.day.zhi}
-                    tenGod={result.tenGods.day}
-                    hiddenStems={result.hiddenStems.day}
-                  />
-                  <PillarCard
-                    title="時柱"
-                    gan={result.pillars.hour.gan}
-                    zhi={result.pillars.hour.zhi}
-                    tenGod={result.tenGods.hour}
-                    hiddenStems={result.hiddenStems.hour}
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4 text-sm leading-7 text-gray-700">
-                  <div>
-                    出生模式：
-                    {form.calendarType === "solar" ? "公曆 / 國曆" : "農曆 / 陰曆"}
-                  </div>
-                  {form.calendarType === "lunar" && (
-                    <div>閏月：{form.isLeapMonth ? "是" : "否"}</div>
-                  )}
-                  <div className="mt-1">出生原始資料：{result.lunarText}</div>
-                  <div className="mt-1">主要五行：{result.dominantElement}</div>
-                  <div>日主強弱：{result.strength}</div>
-                  <div>大運方向：{result.daYun.direction}</div>
-                </div>
-
-                <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4">
-                  <SectionTitle>五行統計</SectionTitle>
+              {activeTab === "elements" && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-bold text-[#2b2418]">五行統計</h2>
                   <div className="space-y-3">
                     {previewResult?.map((item) => (
-                      <ElementBar
-                        key={item.key}
-                        element={item.key}
-                        count={item.count}
-                      />
+                      <ElementBar key={item.key} element={item.key} count={item.count} />
                     ))}
                   </div>
                 </div>
+              )}
 
-                <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4">
-                  <SectionTitle>近十年大運骨架</SectionTitle>
+              {activeTab === "dayun" && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-bold text-[#2b2418]">近十年大運骨架</h2>
                   <div className="grid gap-2 md:grid-cols-2">
                     {result.daYun.cycles?.map((cycle, idx) => (
                       <div
@@ -501,70 +628,90 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+              )}
 
-                <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4">
-                  <SectionTitle>近五年流年</SectionTitle>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {result.recentLiuNian?.map((item) => (
-                      <div
-                        key={item.year}
-                        className="rounded-xl border border-[#eadab6] bg-[#fbf7ef] px-4 py-3 text-sm"
-                      >
-                        <div className="font-medium text-[#2b2418]">
-                          {item.year} 年
+              {activeTab === "liunian" && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="mb-4 text-2xl font-bold text-[#2b2418]">近五年流年</h2>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {result.recentLiuNian?.map((item) => (
+                        <div
+                          key={item.year}
+                          className="rounded-xl border border-[#eadab6] bg-[#fbf7ef] px-4 py-3 text-sm"
+                        >
+                          <div className="font-medium text-[#2b2418]">
+                            {item.year} 年
+                          </div>
+                          <div className="text-[#6b5a3b]">
+                            {item.label} ｜ 十神：{item.tenGod}
+                          </div>
                         </div>
-                        <div className="text-[#6b5a3b]">
-                          {item.label} ｜ 十神：{item.tenGod}
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="mb-4 text-2xl font-bold text-[#2b2418]">未來五年流年</h2>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {result.futureLiuNian?.map((item) => (
+                        <div
+                          key={item.year}
+                          className="rounded-xl border border-[#eadab6] bg-[#fbf7ef] px-4 py-3 text-sm"
+                        >
+                          <div className="font-medium text-[#2b2418]">
+                            {item.year} 年
+                          </div>
+                          <div className="text-[#6b5a3b]">
+                            {item.label} ｜ 十神：{item.tenGod}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="rounded-2xl border border-[#d8c59a] bg-white/70 p-4">
-                  <SectionTitle>未來五年流年</SectionTitle>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {result.futureLiuNian?.map((item) => (
-                      <div
-                        key={item.year}
-                        className="rounded-xl border border-[#eadab6] bg-[#fbf7ef] px-4 py-3 text-sm"
-                      >
-                        <div className="font-medium text-[#2b2418]">
-                          {item.year} 年
-                        </div>
-                        <div className="text-[#6b5a3b]">
-                          {item.label} ｜ 十神：{item.tenGod}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {activeTab === "ai" && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-bold text-[#2b2418]">AI 八字解讀</h2>
+                  {errorText && (
+                    <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      {errorText}
+                    </div>
+                  )}
+                  {loading ? (
+                    <div className="space-y-3 text-sm text-gray-600">
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-black/10" />
+                      <div className="h-4 w-full animate-pulse rounded bg-black/10" />
+                      <div className="h-4 w-5/6 animate-pulse rounded bg-black/10" />
+                      <div className="h-4 w-4/5 animate-pulse rounded bg-black/10" />
+                      <div className="h-4 w-3/4 animate-pulse rounded bg-black/10" />
+                    </div>
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-sm leading-7 text-[#2a2117]">
+                      {aiText || "請先點擊「生成八字命盤」"}
+                    </pre>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="card rounded-3xl p-5 md:p-8">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-2xl font-bold text-[#2b2418]">AI 八字解讀</h2>
-                {loading && (
-                  <span className="rounded-full border border-[#d8c59a] bg-[#fbf7ef] px-3 py-1 text-sm text-[#6b5a3b]">
-                    Gemini 分析中
-                  </span>
-                )}
+              <h2 className="mb-4 text-2xl font-bold text-[#2b2418]">操作區</h2>
+              <button
+                onClick={handleGenerate}
+                disabled={loading}
+                className="w-full rounded-xl bg-[#2b2418] py-3 font-medium text-white transition hover:bg-[#3a3022] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {loading ? "生成中..." : "重新生成"}
+              </button>
+              <div className="mt-4 rounded-2xl border border-[#d8c59a] bg-white/70 p-4 text-sm leading-7 text-gray-700">
+                <div>目前分頁：{activeTab}</div>
+                <div>出生模式：{form.calendarType === "solar" ? "公曆" : "農曆"}</div>
+                <div>日期上限：{maxDay} 日</div>
+                <div>時辰狀態：{form.unknownHour ? "未知" : "已指定"}</div>
               </div>
-
-              {loading ? (
-                <div className="space-y-3 text-sm text-gray-600">
-                  <div className="h-4 w-2/3 animate-pulse rounded bg-black/10" />
-                  <div className="h-4 w-full animate-pulse rounded bg-black/10" />
-                  <div className="h-4 w-5/6 animate-pulse rounded bg-black/10" />
-                  <div className="h-4 w-4/5 animate-pulse rounded bg-black/10" />
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-black/10" />
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap text-sm leading-7 text-[#2a2117]">
-                  {aiText || "請先點擊「生成八字命盤」"}
-                </pre>
-              )}
             </div>
           </section>
         )}
