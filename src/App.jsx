@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Lunar } from "lunar-javascript";
 import { calculateBazi } from "./lib/bazi";
 import { buildBaziPrompt } from "./lib/prompt";
 
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 136 }, (_, i) => currentYear - i); // 約 1900 ~ 現在
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
-const dayOptions = Array.from({ length: 31 }, (_, i) => i + 1);
 
 const shichenOptions = [
   { label: "子時 23:00–00:59", hour: 23 },
@@ -22,6 +22,40 @@ const shichenOptions = [
   { label: "亥時 21:00–22:59", hour: 21 },
   { label: "不確定", hour: null },
 ];
+
+const getDaysInSolarMonth = (year, month) => new Date(year, month, 0).getDate();
+
+// 精準農曆月份天數：用「本月初一」到「下月初一」的日期差來計算
+const getDaysInLunarMonth = (year, month, isLeapMonth = false) => {
+  try {
+    const lunarThis = Lunar.fromYmd(year, month, 1);
+    if (isLeapMonth && typeof lunarThis.setLeap === "function") {
+      lunarThis.setLeap(true);
+    }
+
+    let nextYear = year;
+    let nextMonth = month + 1;
+
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+
+    const lunarNext = Lunar.fromYmd(nextYear, nextMonth, 1);
+
+    const solarThis = lunarThis.getSolar();
+    const solarNext = lunarNext.getSolar();
+
+    const diffMs = solarNext.getCalendar().getTime() - solarThis.getCalendar().getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    // 農曆月份通常只有 29 或 30 天，做個保底
+    return Math.max(29, Math.min(30, diffDays));
+  } catch (error) {
+    console.warn("getDaysInLunarMonth fallback:", error);
+    return 30;
+  }
+};
 
 function PillarCard({ title, gan, zhi, tenGod, hiddenStems }) {
   return (
@@ -92,6 +126,19 @@ export default function App() {
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  const maxDay =
+    form.calendarType === "solar"
+      ? getDaysInSolarMonth(form.year, form.month)
+      : getDaysInLunarMonth(form.year, form.month, form.isLeapMonth);
+
+  const dayOptions = Array.from({ length: maxDay }, (_, i) => i + 1);
+
+  useEffect(() => {
+    if (form.day > maxDay) {
+      setField("day", maxDay);
+    }
+  }, [form.year, form.month, form.day, form.calendarType, form.isLeapMonth, maxDay]);
 
   const previewResult = useMemo(() => {
     if (!result) return null;
@@ -232,7 +279,6 @@ export default function App() {
               出生時辰未知
             </label>
 
-            {/* 年月日欄位：依模式顯示不同文案 */}
             {form.calendarType === "solar" ? (
               <>
                 <select
